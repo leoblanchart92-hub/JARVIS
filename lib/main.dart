@@ -198,7 +198,7 @@ class _AssistantHomeState extends State<AssistantHome> with TickerProviderStateM
       for (final a in const [Alignment(0, -1), Alignment(0, 1), Alignment(-1, 0), Alignment(1, 0)])
         Align(alignment: a, child: Container(width: 5, height: 5, decoration: const BoxDecoration(color: cyan, shape: BoxShape.circle,
           boxShadow: [BoxShadow(color: cyan, blurRadius: 8, spreadRadius: 2)]))),
-    ]),
+    ])),
   );
 }
 
