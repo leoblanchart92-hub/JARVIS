@@ -56,6 +56,18 @@ jobs:
             cp -R /tmp/jarvis-lib lib
           fi
 
+      - name: Allow Android APK installation
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          path = Path("android/app/src/main/AndroidManifest.xml")
+          text = path.read_text()
+          permission = '    <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES" />\n'
+          if "android.permission.REQUEST_INSTALL_PACKAGES" not in text:
+              text = text.replace("<application", permission + "    <application", 1)
+              path.write_text(text)
+          PY
+
       - name: Install dependencies
         run: flutter pub get
 
