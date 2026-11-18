@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:math' as math;
 import 'package:flutter/material.dart';
+import 'update_service.dart';
 
 void main() => runApp(const JarvisApp());
 
@@ -46,6 +47,7 @@ class _AssistantHomeState extends State<AssistantHome> with TickerProviderStateM
   bool _listening = false;
   bool _showChat = false;
   String _clock = '';
+  bool _checkingUpdate = false;
 
   @override
   void initState() {
@@ -56,6 +58,50 @@ class _AssistantHomeState extends State<AssistantHome> with TickerProviderStateM
     Timer.periodic(const Duration(seconds: 1), (_) {
       if (mounted) _updateClock();
     });
+  }
+
+  Future<void> _checkForUpdates() async {
+    if (_checkingUpdate) return;
+    setState(() => _checkingUpdate = true);
+    try {
+      final update = await AppUpdate.check();
+      if (!mounted) return;
+      if (update == null || !update.isAvailable) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('ASTRA est déjà à jour, ou aucune version n’est publiée.')),
+        );
+        return;
+      }
+      await showDialog<void>(
+        context: context,
+        builder: (dialogContext) => AlertDialog(
+          backgroundColor: const Color(0xFF10202D),
+          title: const Text('Mise à jour disponible', style: TextStyle(color: cyan)),
+          content: Text(
+            'Version actuelle : ' + update.currentVersion + '\nNouvelle version : ' + update.latestVersion + '\n\n' + update.releaseNotes,
+            style: const TextStyle(color: Colors.white70),
+          ),
+          actions: [
+            TextButton(onPressed: () => Navigator.pop(dialogContext), child: const Text('Plus tard')),
+            FilledButton(
+              onPressed: () async {
+                Navigator.pop(dialogContext);
+                await update.openRelease();
+              },
+              child: const Text('Télécharger'),
+            ),
+          ],
+        ),
+      );
+    } catch (error) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Vérification impossible : ' + error.toString())),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _checkingUpdate = false);
+    }
   }
 
   void _updateClock() {
@@ -134,7 +180,14 @@ class _AssistantHomeState extends State<AssistantHome> with TickerProviderStateM
       const Text('J.A.R.V.I.S', style: TextStyle(color: Colors.white, fontSize: 13, letterSpacing: 3, fontWeight: FontWeight.w600)),
       const Spacer(),
       _tinyTag('ONLINE'),
-      const SizedBox(width: 8),
+      const SizedBox(width: 4),
+      IconButton(
+        onPressed: _checkingUpdate ? null : _checkForUpdates,
+        tooltip: 'Vérifier les mises à jour',
+        icon: _checkingUpdate
+            ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2, color: cyan))
+            : const Icon(Icons.system_update_alt, color: cyan),
+      ),
       IconButton(onPressed: () => setState(() => _showChat = !_showChat),
         icon: const Icon(Icons.forum_outlined, color: cyan), tooltip: 'Afficher la conversation'),
     ]),
