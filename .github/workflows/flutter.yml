@@ -21,12 +21,15 @@ jobs:
           channel: stable
           cache: true
 
-      - name: Check Flutter project
+      - name: Generate Android project files
         run: |
-          if [ ! -f pubspec.yaml ]; then
-            echo "::error::Aucun projet Flutter trouvé : pubspec.yaml est absent."
-            echo "Ajoute d'abord le code de l'application Flutter dans le dépôt."
-            exit 1
+          if [ ! -d android ]; then
+            cp pubspec.yaml /tmp/jarvis-pubspec.yaml
+            cp -R lib /tmp/jarvis-lib
+            flutter create --platforms=android --project-name jarvis --org com.astra .
+            cp /tmp/jarvis-pubspec.yaml pubspec.yaml
+            rm -rf lib
+            cp -R /tmp/jarvis-lib lib
           fi
 
       - name: Install dependencies
