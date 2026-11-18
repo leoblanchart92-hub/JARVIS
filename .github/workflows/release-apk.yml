@@ -91,9 +91,10 @@ jobs:
       - name: Prepare and sign update manifest
         run: |
           mkdir -p updates
-          cp build/app/outputs/flutter-apk/app-release.apk /tmp/ASTRA.apk
-          SHA256="$(sha256sum /tmp/ASTRA.apk | cut -d ' ' -f 1)"
+          cp build/app/outputs/flutter-apk/app-release.apk ASTRA.apk
+          SHA256="$(sha256sum ASTRA.apk | cut -d ' ' -f 1)"
           echo "APK_SHA256=$SHA256" >> "$GITHUB_ENV"
+          export APK_SHA256="$SHA256"
           python3 - <<'PY'
           import json, os
           manifest = {
@@ -118,7 +119,7 @@ jobs:
           target_commitish: main
           name: ASTRA ${{ env.TAG }}
           generate_release_notes: true
-          files: /tmp/ASTRA.apk
+          files: ASTRA.apk
 
       - name: Publish signed update manifest
         run: |
