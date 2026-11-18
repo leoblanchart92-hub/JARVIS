@@ -1,4 +1,4 @@
-name: Flutter setup
+name: Build Android APK
 
 on:
   push:
@@ -8,8 +8,8 @@ on:
   workflow_dispatch:
 
 jobs:
-  flutter:
-    name: Set up Flutter
+  build-apk:
+    name: Build Jarvis APK
     runs-on: ubuntu-latest
     steps:
       - name: Check out repository
@@ -21,17 +21,24 @@ jobs:
           channel: stable
           cache: true
 
-      - name: Verify Flutter installation
-        run: flutter --version
+      - name: Check Flutter project
+        run: |
+          if [ ! -f pubspec.yaml ]; then
+            echo "::error::Aucun projet Flutter trouvé : pubspec.yaml est absent."
+            echo "Ajoute d'abord le code de l'application Flutter dans le dépôt."
+            exit 1
+          fi
 
       - name: Install dependencies
-        if: hashFiles('pubspec.yaml') != ''
         run: flutter pub get
 
-      - name: Analyze project
-        if: hashFiles('pubspec.yaml') != ''
-        run: flutter analyze
+      - name: Build release APK
+        run: flutter build apk --release
 
-      - name: Run tests
-        if: hashFiles('pubspec.yaml') != ''
-        run: flutter test
+      - name: Upload APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: Jarvis-Android-APK
+          path: build/app/outputs/flutter-apk/app-release.apk
+          if-no-files-found: error
+          retention-days: 14
