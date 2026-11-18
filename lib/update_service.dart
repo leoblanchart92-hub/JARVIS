@@ -1,5 +1,6 @@
 import 'dart:convert';
 import 'dart:io';
+import 'dart:typed_data';
 import 'package:crypto/crypto.dart';
 import 'package:cryptography/cryptography.dart';
 import 'package:http/http.dart' as http;
@@ -10,13 +11,13 @@ import 'package:path_provider/path_provider.dart';
 class AppUpdate {
   final String currentVersion, latestVersion, releaseNotes;
   final Uri apkUrl;
-  final String sha256;
+  final String expectedSha256;
   const AppUpdate({
     required this.currentVersion,
     required this.latestVersion,
     required this.releaseNotes,
     required this.apkUrl,
-    required this.sha256,
+    required this.expectedSha256,
   });
 
   bool get isAvailable => _compareVersions(latestVersion, currentVersion) > 0;
@@ -71,7 +72,7 @@ class AppUpdate {
         latestVersion: version,
         releaseNotes: data['notes'] as String? ?? 'Mise à jour ASTRA.',
         apkUrl: url,
-        sha256: hash,
+        expectedSha256: hash,
       );
     } on SocketException {
       throw Exception('Connexion Internet indisponible. Vérifie ton réseau puis réessaie.');
@@ -103,7 +104,7 @@ class AppUpdate {
       }
 
       final actualHash = sha256.convert(bytes).toString();
-      if (actualHash != sha256) {
+      if (actualHash != expectedSha256) {
         throw Exception('Le contrôle de sécurité a échoué. APK rejeté.');
       }
 
