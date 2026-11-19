@@ -1,5 +1,7 @@
 import 'dart:math' as math;
 import 'package:flutter/material.dart';
+import 'package:speech_to_text/speech_to_text.dart' as stt;
+import 'package:flutter_tts/flutter_tts.dart';
 import 'update_service.dart';
 
 void main() => runApp(const AstraApp());
@@ -31,7 +33,9 @@ class _AssistantHomeState extends State<AssistantHome> with TickerProviderStateM
   final message = TextEditingController();
   final scroll = ScrollController();
   final messages = <ChatMessage>[ChatMessage('ASTRA', 'Bonjour. Je suis prête. Comment puis-je vous aider ?', false)];
-  bool showChat = true, listening = false, checking = false, downloading = false;
+  bool showChat = true, listening = false, checking = false, downloading = false, voiceReady = false;
+  final stt.SpeechToText speech = stt.SpeechToText();
+  final FlutterTts tts = FlutterTts();
   double progress = 0;
 
   @override
@@ -39,7 +43,37 @@ class _AssistantHomeState extends State<AssistantHome> with TickerProviderStateM
     super.initState();
     pulse = AnimationController(vsync: this, duration: const Duration(seconds: 2))..repeat(reverse: true);
     orbit = AnimationController(vsync: this, duration: const Duration(seconds: 18))..repeat();
+    initVoice();
   }
+
+
+  Future<void> initVoice() async {
+    try {
+      voiceReady = await speech.initialize(onStatus: (status) { if (mounted && status == 'done') setState(() => listening = false); }, onError: (_) { if (mounted) setState(() => listening = false); });
+      await tts.setLanguage('fr-FR');
+      await tts.setSpeechRate(0.48);
+      await tts.setVolume(1.0);
+      if (mounted) setState(() {});
+    } catch (_) { voiceReady = false; if (mounted) setState(() {}); }
+  }
+
+
+  Future<void> toggleListening() async {
+    if (!voiceReady) { await initVoice(); }
+    if (!voiceReady) { if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Reconnaissance vocale indisponible. Vérifie les permissions du microphone.'))); return; }
+    if (listening) { await speech.stop(); if (mounted) setState(() => listening = false); return; }
+    setState(() => listening = true);
+    await speech.listen(localeId: 'fr_FR', listenFor: const Duration(seconds: 30), pauseFor: const Duration(seconds: 3), onResult: (result) {
+      if (!mounted) return;
+      message.text = result.recognizedWords;
+      message.selection = TextSelection.collapsed(offset: message.text.length);
+      if (result.finalResult) { setState(() => listening = false); send(); }
+      else setState(() {});
+    });
+  }
+
+
+  Future<void> speak(String text) async { try { await tts.stop(); await tts.speak(text); } catch (_) {} }
 
   Future<void> checkUpdates() async {
     if (checking || downloading) return;
@@ -89,6 +123,7 @@ class _AssistantHomeState extends State<AssistantHome> with TickerProviderStateM
       messages.add(ChatMessage('ASTRA', 'Le module IA n’est pas encore connecté. Ton message est conservé dans cette conversation.', false));
       message.clear(); showChat = true;
     });
+    speak('Message reçu. Mon module intelligence artificielle n’est pas encore connecté.');
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (scroll.hasClients) scroll.animateTo(scroll.position.maxScrollExtent,
         duration: const Duration(milliseconds: 300), curve: Curves.easeOut);
@@ -160,8 +195,8 @@ class _AssistantHomeState extends State<AssistantHome> with TickerProviderStateM
         ])),
         Padding(padding: const EdgeInsets.fromLTRB(16, 8, 16, 16), child: Row(children: [
           Material(color: const Color(0xFF102638), shape: const CircleBorder(),
-            child: IconButton(onPressed: null, tooltip: 'Micro bientôt disponible',
-              icon: const Icon(Icons.mic_off, color: Colors.white38))),
+            child: IconButton(onPressed: toggleListening, tooltip: listening ? 'Arrêter l’écoute' : 'Parler à ASTRA',
+              icon: Icon(listening ? Icons.mic : Icons.mic_none, color: listening ? cyan : Colors.white70))),
           const SizedBox(width: 8),
           Expanded(child: TextField(controller: message, onSubmitted: (_) => send(), style: const TextStyle(color: Colors.white, fontSize: 13),
             decoration: InputDecoration(hintText: 'Écrire à ASTRA…', hintStyle: const TextStyle(color: Colors.white38, fontSize: 12),
