@@ -41,13 +41,13 @@ jobs:
 
       - name: Check signing key secret
         env:
-          ASTRA_UPDATE_PRIVATE_KEY: ${{ secrets.ASTRA_UPDATE_PRIVATE_KEY }}
+          ASTRA_UPDATE_PRIVATE_KEY_B64: ${{ secrets.ASTRA_UPDATE_PRIVATE_KEY_B64 }}
         run: |
-          if [ -z "$ASTRA_UPDATE_PRIVATE_KEY" ]; then
+          if [ -z "$ASTRA_UPDATE_PRIVATE_KEY_B64" ]; then
             echo "::error::Le secret ASTRA_UPDATE_PRIVATE_KEY manque dans GitHub."
             exit 1
           fi
-          printf '%s\n' "$ASTRA_UPDATE_PRIVATE_KEY" > /tmp/astra-update-private.pem
+          printf '%s' "$ASTRA_UPDATE_PRIVATE_KEY_B64" | base64 -d > /tmp/astra-update-private.pem
           openssl pkey -in /tmp/astra-update-private.pem -noout
 
       - name: Install Flutter
