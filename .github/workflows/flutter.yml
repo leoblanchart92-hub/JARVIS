@@ -89,7 +89,7 @@ jobs:
           storePassword=$ASTRA_KEYSTORE_PASSWORD
           keyPassword=$ASTRA_KEY_PASSWORD
           keyAlias=$ASTRA_KEY_ALIAS
-          storeFile=app/astra-release.jks
+          storeFile=astra-release.jks
           EOF
           python3 - <<'PY'
           from pathlib import Path
