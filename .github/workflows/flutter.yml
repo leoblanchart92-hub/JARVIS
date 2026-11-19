@@ -7,6 +7,9 @@ on:
     branches: [main]
   workflow_dispatch:
 
+permissions:
+  contents: write
+
 jobs:
   build-apk:
     name: Build Jarvis APK
@@ -14,6 +17,8 @@ jobs:
     steps:
       - name: Check out repository
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
       - name: Install Flutter
         uses: subosito/flutter-action@v2
@@ -38,7 +43,7 @@ jobs:
           from pathlib import Path
           path = Path("android/app/src/main/AndroidManifest.xml")
           text = path.read_text()
-          permission = '    <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES" />\n'
+          permission = '    <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES" />\\n'
           if "android.permission.REQUEST_INSTALL_PACKAGES" not in text:
               text = text.replace("<application", permission + "    <application", 1)
               path.write_text(text)
@@ -50,10 +55,46 @@ jobs:
       - name: Build release APK
         run: flutter build apk --release
 
-      - name: Upload APK
+      - name: Verify and prepare APK
+        run: |
+          APK="build/app/outputs/flutter-apk/app-release.apk"
+          test -s "$APK"
+          VERSION="$(python3 -c "import re; s=open('pubspec.yaml').read(); m=re.search(r'^version:\\s*([0-9]+\\.[0-9]+\\.[0-9]+)',s,re.M); print(m.group(1) if m else '')")"
+          test -n "$VERSION"
+          TAG="v$VERSION"
+          cp "$APK" ASTRA.apk
+          echo "VERSION=$VERSION" >> "$GITHUB_ENV"
+          echo "TAG=$TAG" >> "$GITHUB_ENV"
+          sha256sum ASTRA.apk
+
+      - name: Upload APK artifact
         uses: actions/upload-artifact@v4
         with:
-          name: Jarvis-Android-APK
-          path: build/app/outputs/flutter-apk/app-release.apk
+          name: ASTRA-Android-APK
+          path: ASTRA.apk
           if-no-files-found: error
           retention-days: 14
+
+      - name: Create version tag (main push only)
+        id: create_tag
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        run: |
+          if git ls-remote --exit-code --tags origin "refs/tags/$TAG" >/dev/null 2>&1; then
+            echo "Tag $TAG already exists; not overwriting it."
+            echo "created=false" >> "$GITHUB_OUTPUT"
+          else
+            git config user.name "github-actions[bot]"
+            git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+            git tag -a "$TAG" -m "ASTRA $TAG"
+            git push origin "$TAG"
+            echo "created=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Publish GitHub Release
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main' && steps.create_tag.outputs.created == 'true'
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ env.TAG }}
+          name: ASTRA ${{ env.TAG }}
+          generate_release_notes: true
+          files: ASTRA.apk
