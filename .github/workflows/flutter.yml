@@ -76,7 +76,7 @@ jobs:
         run: |
           APK="build/app/outputs/flutter-apk/app-release.apk"
           test -s "$APK"
-          VERSION="$(sed -n 's/^version: \([0-9.]*).*/\1/p' pubspec.yaml | head -n1)"
+          VERSION="$(awk '/^version:/{split($2,a,"+");print a[1]}' pubspec.yaml)"
           test -n "$VERSION"
           TAG="v$VERSION"
           cp "$APK" ASTRA.apk
