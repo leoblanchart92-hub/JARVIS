@@ -78,7 +78,7 @@ class _AssistantHomeState extends State<AssistantHome> with TickerProviderStateM
   Future<void> startWakeListening() async {
     if (!wakeMode || !voiceReady || listening || wakeSession) return;
     try {
-      listening = true;
+      if (mounted) setState(() => listening = true);
       await speech.listen(
         localeId: 'fr_FR',
         listenFor: const Duration(seconds: 30),
@@ -138,7 +138,7 @@ class _AssistantHomeState extends State<AssistantHome> with TickerProviderStateM
   }
 
   void restartWakeListening() {
-    Future.delayed(const Duration(milliseconds: 900), () {
+    Future.delayed(const Duration(milliseconds: 4000), () {
       if (mounted && wakeMode && !wakeSession) startWakeListening();
     });
   }
