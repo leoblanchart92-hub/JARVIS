@@ -61,7 +61,8 @@ class _AssistantHomeState extends State<AssistantHome> with TickerProviderStateM
   Future<void> toggleListening() async {
     if (!voiceReady) { await initVoice(); }
     if (!voiceReady) { if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Reconnaissance vocale indisponible. Vérifie les permissions du microphone.'))); return; }
-    if (wakeMode) { await toggleWakeMode(); return; }\n    if (listening) { await speech.stop(); if (mounted) setState(() => listening = false); return; }
+    if (wakeMode) { await toggleWakeMode(); return; }
+    if (listening) { await speech.stop(); if (mounted) setState(() => listening = false); return; }
     setState(() => listening = true);
     await speech.listen(localeId: 'fr_FR', listenFor: const Duration(seconds: 30), pauseFor: const Duration(seconds: 3), onResult: (result) {
       if (!mounted) return;
@@ -85,10 +86,10 @@ class _AssistantHomeState extends State<AssistantHome> with TickerProviderStateM
         onResult: (result) {
           if (!mounted || !wakeMode || wakeSession) return;
           final heard = result.recognizedWords.trim();
-          if (RegExp(r'\\bastra\\b', caseSensitive: false).hasMatch(heard)) {
+          if (RegExp(r'\bastra\b', caseSensitive: false).hasMatch(heard)) {
             wakeSession = true;
             speech.stop();
-            final command = heard.replaceFirst(RegExp(r'\\bastra\\b', caseSensitive: false), '').trim();
+            final command = heard.replaceFirst(RegExp(r'\bastra\b', caseSensitive: false), '').trim();
             if (command.isNotEmpty) {
               message.text = command;
               setState(() { listening = false; });
