@@ -48,7 +48,7 @@ class _AssistantHomeState extends State<AssistantHome> with TickerProviderStateM
       final update = await AppUpdate.check();
       if (!mounted) return;
       if (update == null || !update.isAvailable) {
-        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('ASTRA est déjà à jour, ou aucune version n’est publiée.')));
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Aucune mise à jour disponible.')));
         return;
       }
       await showDialog<void>(context: context, builder: (d) => AlertDialog(
@@ -86,7 +86,7 @@ class _AssistantHomeState extends State<AssistantHome> with TickerProviderStateM
     if (value.isEmpty) return;
     setState(() {
       messages.add(ChatMessage('VOUS', value, true));
-      messages.add(ChatMessage('ASTRA', 'Message reçu. Mon module de conversation sera connecté dans une prochaine étape.', false));
+      messages.add(ChatMessage('ASTRA', 'Le module IA n’est pas encore connecté. Ton message est conservé dans cette conversation.', false));
       message.clear(); showChat = true;
     });
     WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -159,9 +159,9 @@ class _AssistantHomeState extends State<AssistantHome> with TickerProviderStateM
           ],
         ])),
         Padding(padding: const EdgeInsets.fromLTRB(16, 8, 16, 16), child: Row(children: [
-          Material(color: listening ? cyan.withOpacity(.22) : const Color(0xFF102638), shape: const CircleBorder(),
-            child: IconButton(onPressed: () => setState(() => listening = !listening),
-              icon: Icon(listening ? Icons.mic : Icons.mic_none, color: cyan))),
+          Material(color: const Color(0xFF102638), shape: const CircleBorder(),
+            child: IconButton(onPressed: null, tooltip: 'Micro bientôt disponible',
+              icon: const Icon(Icons.mic_off, color: Colors.white38))),
           const SizedBox(width: 8),
           Expanded(child: TextField(controller: message, onSubmitted: (_) => send(), style: const TextStyle(color: Colors.white, fontSize: 13),
             decoration: InputDecoration(hintText: 'Écrire à ASTRA…', hintStyle: const TextStyle(color: Colors.white38, fontSize: 12),
