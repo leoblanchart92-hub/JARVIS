@@ -41,7 +41,13 @@ class AppUpdate {
       final tag = data['tag_name'] as String? ?? '';
       final version = tag.startsWith('v') ? tag.substring(1) : tag;
       final assets = data['assets'] as List<dynamic>? ?? const [];
-      final asset = assets.cast<Map<String, dynamic>>().where((a) => a['name'] == 'ASTRA.apk').firstOrNull;
+      Map<String, dynamic>? asset;
+      for (final item in assets) {
+        if (item is Map<String, dynamic> && item['name'] == 'ASTRA.apk') {
+          asset = item;
+          break;
+        }
+      }
       final url = Uri.tryParse(asset?['browser_download_url'] as String? ?? '');
       final digest = (asset?['digest'] as String? ?? '').toLowerCase();
       final hash = digest.startsWith('sha256:') ? digest.substring(7) : '';
