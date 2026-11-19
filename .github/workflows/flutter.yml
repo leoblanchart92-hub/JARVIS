@@ -35,7 +35,7 @@ jobs:
           if [ ! -d android ]; then
             cp pubspec.yaml /tmp/astra-pubspec.yaml
             cp -R lib /tmp/astra-lib
-            flutter create --platforms=android --project-name astra --org com.astra .
+            flutter create --platforms=android --project-name jarvis --org com.astra .
             cp /tmp/astra-pubspec.yaml pubspec.yaml
             rm -rf lib
             cp -R /tmp/astra-lib lib
