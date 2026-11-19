@@ -24,7 +24,7 @@ class AppUpdate {
 
   // Clé publique Ed25519 d'ASTRA. La clé privée reste dans GitHub Actions.
   static const String _publicKeyBase64 =
-      'FAWGl4XfFYnmnUbNgLr6Jc84J2LIQCXo5bAdC+ViNyQ=';
+      'HmgMYDoZ6YpF9xS5OoGgpDI5dUQbzIvRO8w1ZW5R6Bs=';
 
   static const String _manifestUrl =
       'https://raw.githubusercontent.com/leoblanchart92-hub/Jarvis/main/updates/latest.json';
