@@ -71,6 +71,54 @@ jobs:
           tree.write(path, encoding="utf-8", xml_declaration=True)
           PY
 
+      - name: Configure permanent APK signing
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main' || github.event_name == 'workflow_dispatch'
+        env:
+          ASTRA_KEYSTORE_BASE64: ${{ secrets.ASTRA_KEYSTORE_BASE64 }}
+          ASTRA_KEYSTORE_PASSWORD: ${{ secrets.ASTRA_KEYSTORE_PASSWORD }}
+          ASTRA_KEY_ALIAS: ${{ secrets.ASTRA_KEY_ALIAS }}
+          ASTRA_KEY_PASSWORD: ${{ secrets.ASTRA_KEY_PASSWORD }}
+        run: |
+          set -euo pipefail
+          for name in ASTRA_KEYSTORE_BASE64 ASTRA_KEYSTORE_PASSWORD ASTRA_KEY_ALIAS ASTRA_KEY_PASSWORD; do
+            if [ -z "${!name}" ]; then echo "::error::Missing secret $name"; exit 1; fi
+          done
+          mkdir -p android/app
+          printf '%s' "$ASTRA_KEYSTORE_BASE64" | base64 --decode > android/app/astra-release.jks
+          cat > android/key.properties <<EOF
+          storePassword=$ASTRA_KEYSTORE_PASSWORD
+          keyPassword=$ASTRA_KEY_PASSWORD
+          keyAlias=$ASTRA_KEY_ALIAS
+          storeFile=app/astra-release.jks
+          EOF
+          python3 - <<'PY'
+          from pathlib import Path
+          p = Path("android/app/build.gradle.kts")
+          s = p.read_text()
+          s = s.replace("android {", """import java.util.Properties
+          val keystoreProperties = Properties()
+          val keystorePropertiesFile = rootProject.file("key.properties")
+          if (keystorePropertiesFile.exists()) {
+              keystorePropertiesFile.inputStream().use { keystoreProperties.load(it) }
+          }
+          android {""", 1)
+          s = s.replace("    buildTypes {", """    signingConfigs {
+              create("astraRelease") {
+                  keyAlias = keystoreProperties["keyAlias"] as String
+                  keyPassword = keystoreProperties["keyPassword"] as String
+                  storeFile = file(keystoreProperties["storeFile"] as String)
+                  storePassword = keystoreProperties["storePassword"] as String
+              }
+          }
+          buildTypes {""", 1)
+          s = s.replace('signingConfig = signingConfigs.getByName("debug")', 'signingConfig = signingConfigs.getByName("astraRelease")')
+          releaseStart = s.find('release {', s.find('buildTypes {'))
+          if releaseStart >= 0 and 'astraRelease' not in s[releaseStart:s.find('}', releaseStart)]:
+              s = s[:releaseStart+len('release {')] + '\\n            signingConfig = signingConfigs.getByName("astraRelease")' + s[releaseStart+len('release {'):]
+          p.write_text(s)
+          print("Release signing configured.")
+          PY
+
       - name: Install dependencies
         run: flutter pub get
 
