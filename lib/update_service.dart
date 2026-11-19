@@ -106,7 +106,10 @@ class AppUpdate {
     }
   }
 
-  static bool _validVersion(String v) => RegExp(r'^\\d+\\.\\d+\\.\\d+$').hasMatch(v);
+  static bool _validVersion(String v) {
+    final parts = v.split('.');
+    return parts.length == 3 && parts.every((part) => part.isNotEmpty && int.tryParse(part) != null);
+  }
 
   static int _compareVersions(String a, String b) {
     final left = a.split('.').map((v) => int.tryParse(v) ?? 0).toList();
