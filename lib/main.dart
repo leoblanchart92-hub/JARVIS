@@ -33,7 +33,7 @@ class _AssistantHomeState extends State<AssistantHome> with TickerProviderStateM
   final message = TextEditingController();
   final scroll = ScrollController();
   final messages = <ChatMessage>[ChatMessage('ASTRA', 'Bonjour. Je suis prête. Comment puis-je vous aider ?', false)];
-  bool showChat = true, listening = false, checking = false, downloading = false, voiceReady = false;
+  bool showChat = true, listening = false, checking = false, downloading = false, voiceReady = false, wakeMode = false, wakeSession = false;
   final stt.SpeechToText speech = stt.SpeechToText();
   final FlutterTts tts = FlutterTts();
   double progress = 0;
@@ -49,7 +49,7 @@ class _AssistantHomeState extends State<AssistantHome> with TickerProviderStateM
 
   Future<void> initVoice() async {
     try {
-      voiceReady = await speech.initialize(onStatus: (status) { if (mounted && status == 'done') setState(() => listening = false); }, onError: (_) { if (mounted) setState(() => listening = false); });
+      voiceReady = await speech.initialize(onStatus: (status) { if (mounted && status == 'done') { setState(() => listening = false); if (wakeMode && !wakeSession) restartWakeListening(); } }, onError: (_) { if (mounted) setState(() => listening = false); });
       await tts.setLanguage('fr-FR');
       await tts.setSpeechRate(0.48);
       await tts.setVolume(1.0);
@@ -61,7 +61,7 @@ class _AssistantHomeState extends State<AssistantHome> with TickerProviderStateM
   Future<void> toggleListening() async {
     if (!voiceReady) { await initVoice(); }
     if (!voiceReady) { if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Reconnaissance vocale indisponible. Vérifie les permissions du microphone.'))); return; }
-    if (listening) { await speech.stop(); if (mounted) setState(() => listening = false); return; }
+    if (wakeMode) { await toggleWakeMode(); return; }\n    if (listening) { await speech.stop(); if (mounted) setState(() => listening = false); return; }
     setState(() => listening = true);
     await speech.listen(localeId: 'fr_FR', listenFor: const Duration(seconds: 30), pauseFor: const Duration(seconds: 3), onResult: (result) {
       if (!mounted) return;
@@ -72,6 +72,94 @@ class _AssistantHomeState extends State<AssistantHome> with TickerProviderStateM
     });
   }
 
+
+  // Wake-word prototype: listens for "ASTRA" while the app is open.
+  Future<void> startWakeListening() async {
+    if (!wakeMode || !voiceReady || listening || wakeSession) return;
+    try {
+      listening = true;
+      await speech.listen(
+        localeId: 'fr_FR',
+        listenFor: const Duration(seconds: 30),
+        pauseFor: const Duration(seconds: 5),
+        onResult: (result) {
+          if (!mounted || !wakeMode || wakeSession) return;
+          final heard = result.recognizedWords.trim();
+          if (RegExp(r'\\bastra\\b', caseSensitive: false).hasMatch(heard)) {
+            wakeSession = true;
+            speech.stop();
+            final command = heard.replaceFirst(RegExp(r'\\bastra\\b', caseSensitive: false), '').trim();
+            if (command.isNotEmpty) {
+              message.text = command;
+              setState(() { listening = false; });
+              send();
+              wakeSession = false;
+              restartWakeListening();
+            } else {
+              setState(() { listening = false; });
+              speak('Oui, je vous écoute.');
+              startCommandListening();
+            }
+          }
+        },
+      );
+    } catch (_) {
+      listening = false;
+    }
+  }
+
+  Future<void> startCommandListening() async {
+    if (!wakeMode || !voiceReady) return;
+    try {
+      listening = true;
+      await speech.listen(
+        localeId: 'fr_FR',
+        listenFor: const Duration(seconds: 30),
+        pauseFor: const Duration(seconds: 3),
+        onResult: (result) {
+          if (!mounted || !wakeSession) return;
+          message.text = result.recognizedWords;
+          message.selection = TextSelection.collapsed(offset: message.text.length);
+          setState(() {});
+          if (result.finalResult) {
+            setState(() { listening = false; });
+            send();
+            wakeSession = false;
+            restartWakeListening();
+          }
+        },
+      );
+    } catch (_) {
+      listening = false;
+      wakeSession = false;
+      restartWakeListening();
+    }
+  }
+
+  void restartWakeListening() {
+    Future.delayed(const Duration(milliseconds: 900), () {
+      if (mounted && wakeMode && !wakeSession) startWakeListening();
+    });
+  }
+
+  Future<void> toggleWakeMode() async {
+    if (!voiceReady) await initVoice();
+    if (!voiceReady) {
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Microphone indisponible. Vérifie la permission.')));
+      return;
+    }
+    setState(() { wakeMode = !wakeMode; wakeSession = false; });
+    if (wakeMode) {
+      await speech.stop();
+      listening = false;
+      restartWakeListening();
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Écoute du mot ASTRA activée tant que l’application reste ouverte.')));
+    } else {
+      await speech.stop();
+      setState(() { listening = false; });
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Écoute vocale désactivée.')));
+    }
+  }
 
   Future<void> speak(String text) async { try { await tts.stop(); await tts.speak(text); } catch (_) {} }
 
@@ -149,6 +237,13 @@ class _AssistantHomeState extends State<AssistantHome> with TickerProviderStateM
           onTap: () { setState(() => showChat = true); Navigator.pop(context); }),
         ListTile(leading: const Icon(Icons.visibility_off_outlined, color: cyan), title: const Text('Masquer la conversation'),
           onTap: () { setState(() => showChat = false); Navigator.pop(context); }),
+        ListTile(
+          leading: Icon(wakeMode ? Icons.hearing : Icons.hearing_disabled, color: cyan),
+          title: Text(wakeMode ? 'Écoute ASTRA activée' : 'Activer le mot ASTRA'),
+          subtitle: const Text('Écoute seulement quand ASTRA est ouvert'),
+          trailing: Switch(value: wakeMode, onChanged: (_) => toggleWakeMode(), activeColor: cyan),
+          onTap: toggleWakeMode,
+        ),
         ListTile(leading: const Icon(Icons.system_update_alt, color: cyan),
           title: Text(checking ? 'Vérification…' : 'Mises à jour'),
           onTap: () { Navigator.pop(context); checkUpdates(); }),
