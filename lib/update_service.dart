@@ -1,6 +1,5 @@
 import 'dart:convert';
 import 'dart:io';
-import 'dart:typed_data';
 import 'package:crypto/crypto.dart';
 import 'package:http/http.dart' as http;
 import 'package:open_filex/open_filex.dart';
@@ -74,7 +73,7 @@ class AppUpdate {
       await for (final chunk in response.stream.timeout(const Duration(seconds: 45))) {
         builder.add(chunk);
         received += chunk.length;
-        if (total > 0) onProgress((received / total).clamp(0.0, 1.0));
+        if (total > 0) onProgress((received / total).clamp(0.0, 1.0).toDouble());
       }
       final bytes = builder.takeBytes();
       if (bytes.length < 100 * 1024) {
