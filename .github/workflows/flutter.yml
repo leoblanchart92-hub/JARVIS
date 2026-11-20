@@ -67,6 +67,21 @@ jobs:
             cp -R /tmp/astra-lib lib
           fi
 
+      - name: Lock ASTRA Android package identity
+        run: |
+          python3 - <<'PY'
+          import re
+          from pathlib import Path
+          gradle = Path("android/app/build.gradle.kts")
+          s = gradle.read_text()
+          s = re.sub(r'namespace\\s*=\\s*"[^"]+"', 'namespace = "com.astra.jarvis"', s, count=1)
+          s = re.sub(r'applicationId\\s*=\\s*"[^"]+"', 'applicationId = "com.astra.jarvis"', s, count=1)
+          if 'namespace = "com.astra.jarvis"' not in s or 'applicationId = "com.astra.jarvis"' not in s:
+              raise SystemExit("Unable to lock ASTRA package identity to com.astra.jarvis.")
+          gradle.write_text(s)
+          print("ASTRA package locked to com.astra.jarvis.")
+          PY
+
       - name: Set ASTRA app label and permissions
         run: |
           python3 - <<'PY'
