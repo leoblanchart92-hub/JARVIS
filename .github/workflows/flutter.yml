@@ -74,8 +74,8 @@ jobs:
           from pathlib import Path
           gradle = Path("android/app/build.gradle.kts")
           s = gradle.read_text()
-          s = re.sub(r'namespace\\s*=\\s*"[^"]+"', 'namespace = "com.astra.jarvis"', s, count=1)
-          s = re.sub(r'applicationId\\s*=\\s*"[^"]+"', 'applicationId = "com.astra.jarvis"', s, count=1)
+          s = re.sub(r'namespace\s*=\s*"[^"]+"', 'namespace = "com.astra.jarvis"', s, count=1)
+          s = re.sub(r'applicationId\s*=\s*"[^"]+"', 'applicationId = "com.astra.jarvis"', s, count=1)
           if 'namespace = "com.astra.jarvis"' not in s or 'applicationId = "com.astra.jarvis"' not in s:
               raise SystemExit("Unable to lock ASTRA package identity to com.astra.jarvis.")
           gradle.write_text(s)
@@ -151,7 +151,7 @@ jobs:
       }
       '''
           if "create(\"astraRelease\")" not in s:
-              s=s.replace("android {", "android {\\n"+signing, 1)
+              s=s.replace("android {", "android {\n"+signing, 1)
           s=s.replace('signingConfig = signingConfigs.getByName("debug")', 'signingConfig = signingConfigs.getByName("astraRelease")')
           if 'signingConfig = signingConfigs.getByName("astraRelease")' not in s:
               raise SystemExit("Could not set ASTRA release signing on release build type.")
