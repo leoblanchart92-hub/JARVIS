@@ -97,21 +97,42 @@ jobs:
           tree.write(path, encoding="utf-8", xml_declaration=True)
           PY
 
-      - name: Configure release APK signing
+      - name: Configure stable release signing
+        env:
+          ASTRA_KEYSTORE_BASE64: ${{ secrets.ASTRA_KEYSTORE_BASE64 }}
+          ASTRA_KEYSTORE_PASSWORD: ${{ secrets.ASTRA_KEYSTORE_PASSWORD }}
+          ASTRA_KEY_ALIAS: ${{ secrets.ASTRA_KEY_ALIAS }}
+          ASTRA_KEY_PASSWORD: ${{ secrets.ASTRA_KEY_PASSWORD }}
         run: |
+          set -e
+          test -n "$ASTRA_KEYSTORE_BASE64" || { echo "Missing ASTRA_KEYSTORE_BASE64 secret"; exit 1; }
+          test -n "$ASTRA_KEYSTORE_PASSWORD" || { echo "Missing ASTRA_KEYSTORE_PASSWORD secret"; exit 1; }
+          test -n "$ASTRA_KEY_ALIAS" || { echo "Missing ASTRA_KEY_ALIAS secret"; exit 1; }
+          test -n "$ASTRA_KEY_PASSWORD" || { echo "Missing ASTRA_KEY_PASSWORD secret"; exit 1; }
+          echo "$ASTRA_KEYSTORE_BASE64" | base64 --decode > android/app/astra-release.jks
           python3 - <<'PY'
           from pathlib import Path
           p = Path("android/app/build.gradle.kts")
           s = p.read_text()
-          release_start = s.find('release {', s.find('buildTypes {'))
-          if release_start >= 0:
-              close = s.find('}', release_start)
-              block = s[release_start:close]
-              if 'signingConfig' not in block:
-                  s = s[:release_start+len('release {')] + '\\n            signingConfig = signingConfigs.getByName("debug")' + s[release_start+len('release {'):]
+          android_marker = "android {"
+          signing_block = '''
+              signingConfigs {
+                  create("astraRelease") {
+                      storeFile = file("astra-release.jks")
+                      storePassword = System.getenv("ASTRA_KEYSTORE_PASSWORD")
+                      keyAlias = System.getenv("ASTRA_KEY_ALIAS")
+                      keyPassword = System.getenv("ASTRA_KEY_PASSWORD")
+                  }
+              }
+          '''
+          if "create(\\\"astraRelease\\\")" not in s:
+              s = s.replace(android_marker, android_marker + signing_block, 1)
+          s = s.replace('signingConfig = signingConfigs.getByName("debug")',
+                      'signingConfig = signingConfigs.getByName("astraRelease")')
           p.write_text(s)
-          print("Release APK will use CI debug signing.")
           PY
+          keytool -list -keystore android/app/astra-release.jks -storepass "$ASTRA_KEYSTORE_PASSWORD" -alias "$ASTRA_KEY_ALIAS" >/dev/null
+          echo "Stable ASTRA release signing configured."
 
       - name: Install dependencies
         run: flutter pub get
