@@ -84,7 +84,21 @@ jobs:
             if [ -z "${!name}" ]; then echo "::error::Missing secret $name"; exit 1; fi
           done
           mkdir -p android/app
-          printf '%s' "$ASTRA_KEYSTORE_BASE64" | base64 --decode > android/app/astra-release.jks
+          python3 - <<'PY'
+          import base64, os, re
+          raw = os.environ["ASTRA_KEYSTORE_BASE64"]
+          cleaned = re.sub(r"\\s+", "", raw)
+          try:
+              data = base64.b64decode(cleaned, validate=True)
+          except Exception as exc:
+              raise SystemExit("ASTRA_KEYSTORE_BASE64 is not valid Base64. Re-copy the secret from the keystore file.") from exc
+          if not data.startswith(b"\xFE\xED\xFE\xED"):
+              raise SystemExit("Decoded file does not appear to be a Java keystore (JKS).")
+          with open("android/app/astra-release.jks", "wb") as f:
+              f.write(data)
+          PY
+          keytool -list -keystore android/app/astra-release.jks -alias "$ASTRA_KEY_ALIAS" -storepass "$ASTRA_KEYSTORE_PASSWORD" >/dev/null
+          echo "Keystore decoded and verified."
           cat > android/key.properties <<EOF
           storePassword=$ASTRA_KEYSTORE_PASSWORD
           keyPassword=$ASTRA_KEY_PASSWORD
