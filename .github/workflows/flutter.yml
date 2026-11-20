@@ -3,6 +3,8 @@ name: Build Android APK
 on:
   push:
     branches: [main]
+    paths-ignore:
+      - "updates/latest.json"
   pull_request:
     branches: [main]
   workflow_dispatch:
@@ -23,6 +25,23 @@ jobs:
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
+
+      - name: Calculate next release version
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main' || github.event_name == 'workflow_dispatch'
+        shell: bash
+        run: |
+          git fetch --tags --force
+          latest="$(git tag -l 'v[0-9]*.[0-9]*.[0-9]*' --sort=-v:refname | head -n1)"
+          if [[ -z "$latest" ]]; then
+            latest="v1.0.0"
+          fi
+          version="${latest#v}"
+          IFS='.' read -r major minor patch <<< "$version"
+          patch=$((patch + 1))
+          next="${major}.${minor}.${patch}"
+          echo "VERSION=$next" >> "$GITHUB_ENV"
+          echo "TAG=v$next" >> "$GITHUB_ENV"
+          echo "Next ASTRA release: v$next"
 
       - name: Install Flutter
         uses: subosito/flutter-action@v2
@@ -82,7 +101,7 @@ jobs:
               close = s.find('}', release_start)
               block = s[release_start:close]
               if 'signingConfig' not in block:
-                  s = s[:release_start+len('release {')] + '\n            signingConfig = signingConfigs.getByName("debug")' + s[release_start+len('release {'):]
+                  s = s[:release_start+len('release {')] + '\\n            signingConfig = signingConfigs.getByName("debug")' + s[release_start+len('release {'):]
           p.write_text(s)
           print("Release APK will use CI debug signing.")
           PY
@@ -97,18 +116,13 @@ jobs:
         run: |
           APK="build/app/outputs/flutter-apk/app-release.apk"
           test -s "$APK"
-          VERSION="$(awk '/^version:/{split($2,a,"+");print a[1]}' pubspec.yaml)"
-          test -n "$VERSION"
-          TAG="v$VERSION"
           cp "$APK" ASTRA.apk
-          echo "VERSION=$VERSION" >> "$GITHUB_ENV"
-          echo "TAG=$TAG" >> "$GITHUB_ENV"
           sha256sum ASTRA.apk
 
       - name: Upload APK artifact
         uses: actions/upload-artifact@v4
         with:
-          name: ASTRA-Android-APK
+          name: ASTRA-${{ env.TAG }}-APK
           path: ASTRA.apk
           if-no-files-found: error
           retention-days: 14
