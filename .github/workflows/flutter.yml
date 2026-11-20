@@ -124,7 +124,7 @@ jobs:
           import os, base64, re
           from pathlib import Path
           raw = os.getenv("ASTRA_KEYSTORE_BASE64", "")
-          encoded = re.sub(r"\\s+", "", raw)
+          encoded = re.sub(r"\s+", "", raw)
           try:
               decoded = base64.b64decode(encoded, validate=True)
           except Exception:
@@ -151,9 +151,9 @@ jobs:
               "        }",
               "    }",
           ]
-          signing_block = "\\n".join(signing_lines)
+          signing_block = "\n".join(signing_lines)
           if 'create("astraRelease")' not in gradle:
-              gradle = gradle.replace("android {", "android {\\n" + signing_block, 1)
+              gradle = gradle.replace("android {", "android {\n" + signing_block, 1)
           gradle = gradle.replace(
               'signingConfig = signingConfigs.getByName("debug")',
               'signingConfig = signingConfigs.getByName("astraRelease")'
