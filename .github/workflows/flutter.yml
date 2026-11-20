@@ -87,7 +87,7 @@ jobs:
           python3 - <<'PY'
           import base64, os, re
           raw = os.environ["ASTRA_KEYSTORE_BASE64"]
-          cleaned = re.sub(r"\\s+", "", raw)
+          cleaned = re.sub(r"[ \t\r\n]+", "", raw)
           try:
               data = base64.b64decode(cleaned, validate=True)
           except Exception as exc:
