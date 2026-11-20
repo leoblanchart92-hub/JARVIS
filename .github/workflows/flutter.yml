@@ -95,8 +95,8 @@ jobs:
               data = base64.b64decode(cleaned, validate=True)
           except Exception as exc:
               raise SystemExit("ASTRA_KEYSTORE_BASE64 cannot be decoded. The secret may be incomplete or corrupted.") from exc
-          if not data.startswith(b"\xFE\xED\xFE\xED"):
-              raise SystemExit("Decoded data is not a valid JKS keystore. Re-encode the original astra-release.jks file.")
+          # JKS files use the FEEDFEED header, while newer keytool defaults
+          # may produce PKCS12 (ASN.1) files. Validate with keytool below instead.
           with open("android/app/astra-release.jks", "wb") as f:
               f.write(data)
           PY
