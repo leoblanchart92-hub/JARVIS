@@ -391,7 +391,13 @@ class _AssistantHomeState extends State<AssistantHome> with TickerProviderStateM
           const SizedBox(width: 5),
           const Text('ASTRA', style: TextStyle(color: Colors.white, fontSize: 15, letterSpacing: 4, fontWeight: FontWeight.w600)),
           const Spacer(),
-          if (checking) const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2, color: cyan)),
+          IconButton(
+            onPressed: checking || downloading ? null : checkUpdates,
+            tooltip: 'Vérifier les mises à jour',
+            icon: checking
+              ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2, color: cyan))
+              : const Icon(Icons.system_update_alt_rounded, color: cyan, size: 23),
+          ),
         ])),
         Expanded(child: Column(children: [
           Expanded(flex: showChat ? 5 : 10, child: Center(child: reactor())),
