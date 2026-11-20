@@ -125,7 +125,7 @@ jobs:
                   }
               }
           '''
-          if "create(\\\"astraRelease\\\")" not in s:
+          if 'astraRelease' not in s:
               s = s.replace(android_marker, android_marker + signing_block, 1)
           s = s.replace('signingConfig = signingConfigs.getByName("debug")',
                       'signingConfig = signingConfigs.getByName("astraRelease")')
