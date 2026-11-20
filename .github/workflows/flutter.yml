@@ -145,13 +145,13 @@ jobs:
           create("astraRelease") {
               storeFile = file("astra-release.jks")
               storePassword = System.getenv("ASTRA_KEYSTORE_PASSWORD")
-              keyAlias = System.getenv("ASTRA_KEY_ALIAS") ?: "astra"
+              keyAlias = System.getenv("ASTRA_KEY_ALIAS").takeUnless { it.isNullOrBlank() } ?: "astra"
               keyPassword = System.getenv("ASTRA_KEY_PASSWORD")
           }
       }
       '''
           if "create(\"astraRelease\")" not in s:
-              s=s.replace("android {", "android {\\n"+signing, 1)
+              s=s.replace("android {", "android {\n"+signing, 1)
           s=s.replace('signingConfig = signingConfigs.getByName("debug")', 'signingConfig = signingConfigs.getByName("astraRelease")')
           if 'signingConfig = signingConfigs.getByName("astraRelease")' not in s:
               raise SystemExit("Could not set ASTRA release signing on release build type.")
