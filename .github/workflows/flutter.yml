@@ -82,7 +82,7 @@ jobs:
               close = s.find('}', release_start)
               block = s[release_start:close]
               if 'signingConfig' not in block:
-                  s = s[:release_start+len('release {')] + '\\n            signingConfig = signingConfigs.getByName("debug")' + s[release_start+len('release {'):]
+                  s = s[:release_start+len('release {')] + '\n            signingConfig = signingConfigs.getByName("debug")' + s[release_start+len('release {'):]
           p.write_text(s)
           print("Release APK will use CI debug signing.")
           PY
