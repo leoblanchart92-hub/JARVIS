@@ -87,13 +87,16 @@ jobs:
           python3 - <<'PY'
           import base64, os, re
           raw = os.environ["ASTRA_KEYSTORE_BASE64"]
-          cleaned = re.sub(r"[ \t\r\n]+", "", raw)
+          # Normalize clipboard formatting and ignore non-Base64 separators.
+          cleaned = re.sub(r"[^A-Za-z0-9+/=]", "", raw)
+          cleaned = cleaned.rstrip("=")
+          cleaned += "=" * ((4 - len(cleaned) % 4) % 4)
           try:
               data = base64.b64decode(cleaned, validate=True)
           except Exception as exc:
-              raise SystemExit("ASTRA_KEYSTORE_BASE64 is not valid Base64. Re-copy the secret from the keystore file.") from exc
+              raise SystemExit("ASTRA_KEYSTORE_BASE64 cannot be decoded. The secret may be incomplete or corrupted.") from exc
           if not data.startswith(b"\xFE\xED\xFE\xED"):
-              raise SystemExit("Decoded file does not appear to be a Java keystore (JKS).")
+              raise SystemExit("Decoded data is not a valid JKS keystore. Re-encode the original astra-release.jks file.")
           with open("android/app/astra-release.jks", "wb") as f:
               f.write(data)
           PY
