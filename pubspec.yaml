@@ -18,6 +18,9 @@ dependencies:
   cryptography: ^2.7.0
   speech_to_text: ^7.3.0
   flutter_tts: ^4.2.2
+  llamadart: ^0.20.2
+  connectivity_plus: ^6.1.5
+  shared_preferences: ^2.3.2
 
 dev_dependencies:
   flutter_test:
