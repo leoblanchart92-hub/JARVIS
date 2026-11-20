@@ -70,19 +70,20 @@ class _AssistantHomeState extends State<AssistantHome> with TickerProviderStateM
 
   Future<void> loadBrain() async {
     if (brainLoading || brainReady) return;
-    final source = ModelSource.parse(AstraBrain.modelSource);
-    final manager = DefaultModelDownloadManager();
-    final cached = await manager.get(source.cacheKey);
-    if (cached == null && wifiOnly) {
-      final connection = await Connectivity().checkConnectivity();
-      if (connection != ConnectivityResult.wifi) {
-        if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-          content: Text('Le téléchargement est limité au Wi-Fi. Connecte-toi au Wi-Fi ou désactive cette option dans le menu ASTRA.')));
-        return;
-      }
-    }
-    setState(() { brainLoading = true; brainProgress = 0; brainStatus = 'Chargement du cerveau…'; });
+    setState(() { brainLoading = true; brainProgress = 0; brainStatus = 'Préparation du cerveau…'; });
     try {
+      final source = ModelSource.parse(AstraBrain.modelSource);
+      final manager = DefaultModelDownloadManager();
+      final cached = await manager.get(source.cacheKey);
+      if (cached == null && wifiOnly) {
+        final connection = await Connectivity().checkConnectivity();
+        if (connection != ConnectivityResult.wifi) {
+          if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+            content: Text('Le téléchargement est limité au Wi-Fi. Connecte-toi au Wi-Fi ou désactive cette option dans le menu ASTRA.')));
+          if (mounted) setState(() { brainStatus = 'En attente du Wi-Fi'; });
+          return;
+        }
+      }
       await brain.load(onProgress: (fraction) {
         if (mounted) setState(() { brainProgress = fraction; brainStatus = 'Téléchargement du modèle…'; });
       });
@@ -119,7 +120,7 @@ class _AssistantHomeState extends State<AssistantHome> with TickerProviderStateM
   }
 
 
-  bool needsWebSearch(String query) => RegExp(r'\b(cherche|recherche|internet|actualité|actualit[eé]s|aujourd|maintenant|actuellement|r[eé]cent|derni[eè]re|prix|m[eé]t[eé]o|news|qui est|quand est|combien)\b', caseSensitive: false).hasMatch(query);
+  bool needsWebSearch(String query) => RegExp(r'\b(cherche|recherche|internet|web|site|source|google|actualité|actualit[eé]s|aujourd|maintenant|actuellement|r[eé]cent|derni[eè]re|prix|m[eé]t[eé]o|news|qui est|quand est|combien)\b', caseSensitive: false).hasMatch(query);
 
   @override
   void initState() {
@@ -292,8 +293,7 @@ class _AssistantHomeState extends State<AssistantHome> with TickerProviderStateM
     final value = message.text.trim();
     if (value.isEmpty) return;
     message.clear();
-    final userIndex = messages.length;
-    final answerIndex = userIndex + 1;
+    final answerIndex = messages.length + 1;
     setState(() {
       messages.add(ChatMessage('VOUS', value, true));
       messages.add(ChatMessage('ASTRA', '…', false));
