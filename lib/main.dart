@@ -537,12 +537,12 @@ class HologramFigurePainter extends CustomPainter {
     canvas.drawLine(Offset(center + 15, 106), Offset(center + 13, 126), p);
     final bust = Path()
       ..moveTo(center - 13, 122)..quadraticBezierTo(center - 38, 125, center - 50, 142)
-      ..lineTo(center - 63, 176)..quadraticBezierQ(center - 68, 192, center - 48, 197)
+      ..lineTo(center - 63, 176)..quadraticBezierTo(center - 68, 192, center - 48, 197)
       ..lineTo(center - 39, 187)..lineTo(center - 30, 165)..lineTo(center - 30, 222)
-      ..quadraticBezierQ(center, 234, center + 30, 222)..lineTo(center + 30, 165)
+      ..quadraticBezierTo(center, 234, center + 30, 222)..lineTo(center + 30, 165)
       ..lineTo(center + 39, 187)..lineTo(center + 48, 197)
-      ..quadraticBezierQ(center + 68, 192, center + 63, 176)..lineTo(center + 50, 142)
-      ..quadraticBezierQ(center + 38, 125, center + 13, 122)..close();
+      ..quadraticBezierTo(center + 68, 192, center + 63, 176)..lineTo(center + 50, 142)
+      ..quadraticBezierTo(center + 38, 125, center + 13, 122)..close();
     canvas.drawPath(bust, fill); canvas.drawPath(bust, p);
     p.color = cyan.withOpacity(.42); p.strokeWidth = 1;
     canvas.drawLine(Offset(center - 18, 68), Offset(center - 7, 68), p);
