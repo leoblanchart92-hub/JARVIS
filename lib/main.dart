@@ -38,7 +38,7 @@ class _AssistantHomeState extends State<AssistantHome> with TickerProviderStateM
   final message = TextEditingController();
   final scroll = ScrollController();
   final messages = <ChatMessage>[ChatMessage('ASTRA', 'Bonjour. Je suis prête. Comment puis-je vous aider ?', false)];
-  bool showChat = true, listening = false, checking = false, downloading = false, voiceReady = false, wakeMode = false, wakeSession = false;
+  bool showChat = true, showSettings = false, listening = false, checking = false, downloading = false, voiceReady = false, wakeMode = false, wakeSession = false;
   final stt.SpeechToText speech = stt.SpeechToText();
   final FlutterTts tts = FlutterTts();
   double progress = 0;
@@ -53,6 +53,7 @@ class _AssistantHomeState extends State<AssistantHome> with TickerProviderStateM
     setState(() {
       wifiOnly = prefs.getBool('astra_wifi_only') ?? true;
       internetEnabled = prefs.getBool('astra_internet') ?? true;
+      wakeMode = prefs.getBool('astra_wake_mode') ?? false;
     });
   }
 
@@ -66,6 +67,26 @@ class _AssistantHomeState extends State<AssistantHome> with TickerProviderStateM
     setState(() => internetEnabled = value);
     final prefs = await SharedPreferences.getInstance();
     await prefs.setBool('astra_internet', value);
+  }
+
+  Future<void> setWakeMode(bool value) async {
+    if (value && !voiceReady) await initVoice();
+    if (value && !voiceReady) {
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Microphone indisponible. Vérifie la permission.')));
+      return;
+    }
+    setState(() { wakeMode = value; wakeSession = false; });
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool('astra_wake_mode', value);
+    await speech.stop();
+    if (value) {
+      listening = false;
+      restartWakeListening();
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Écoute de « Hey Astra » activée tant que l’application reste ouverte.')));
+    } else {
+      if (mounted) setState(() { listening = false; });
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Écoute vocale désactivée.')));
+    }
   }
 
   Future<void> loadBrain() async {
@@ -228,24 +249,7 @@ class _AssistantHomeState extends State<AssistantHome> with TickerProviderStateM
     });
   }
 
-  Future<void> toggleWakeMode() async {
-    if (!voiceReady) await initVoice();
-    if (!voiceReady) {
-      if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Microphone indisponible. Vérifie la permission.')));
-      return;
-    }
-    setState(() { wakeMode = !wakeMode; wakeSession = false; });
-    if (wakeMode) {
-      await speech.stop();
-      listening = false;
-      restartWakeListening();
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Écoute de « Hey Astra » activée tant que l’application reste ouverte.')));
-    } else {
-      await speech.stop();
-      setState(() { listening = false; });
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Écoute vocale désactivée.')));
-    }
-  }
+  Future<void> toggleWakeMode() => setWakeMode(!wakeMode);
 
   Future<void> speak(String text) async { try { await tts.stop(); await tts.speak(text); } catch (_) {} }
 
@@ -339,36 +343,41 @@ class _AssistantHomeState extends State<AssistantHome> with TickerProviderStateM
   Widget build(BuildContext context) => Scaffold(
     drawer: Drawer(backgroundColor: const Color(0xFF081521), child: SafeArea(child: Column(
       crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-        Padding(padding: const EdgeInsets.fromLTRB(22, 30, 22, 24), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          Container(width: 56, height: 56, decoration: BoxDecoration(shape: BoxShape.circle, border: Border.all(color: cyan, width: 1.5)),
-            child: const Icon(Icons.blur_on, color: cyan, size: 32)),
-          const SizedBox(height: 14),
-          const Text('ASTRA', style: TextStyle(color: Colors.white, fontSize: 22, letterSpacing: 5)),
-          const Text('ASSISTANT IA', style: TextStyle(color: cyan, fontSize: 9, letterSpacing: 2)),
-        ])),
-        const Divider(color: Color(0x3354E8FF)),
-        ListTile(leading: const Icon(Icons.forum_outlined, color: cyan), title: const Text('Conversation'),
-          onTap: () { setState(() => showChat = true); Navigator.pop(context); }),
-        ListTile(leading: const Icon(Icons.visibility_off_outlined, color: cyan), title: const Text('Masquer la conversation'),
-          onTap: () { setState(() => showChat = false); Navigator.pop(context); }),
-        ListTile(
-          leading: Icon(wakeMode ? Icons.hearing : Icons.hearing_disabled, color: cyan),
-          title: Text(wakeMode ? 'Écoute Hey Astra activée' : 'Activer « Hey Astra »'),
-          subtitle: const Text('Écoute seulement quand ASTRA est ouvert'),
-          trailing: Switch(value: wakeMode, onChanged: (_) => toggleWakeMode(), activeColor: cyan),
-          onTap: toggleWakeMode,
-        ),
-        SwitchListTile(title: const Text('Téléchargement Wi-Fi uniquement'), subtitle: const Text('Évite d’utiliser les données mobiles'), value: wifiOnly, onChanged: setWifiOnly, activeColor: cyan),
-        SwitchListTile(title: const Text('Accès Internet pour recherches'), subtitle: const Text('ASTRA peut consulter le Web pour les questions récentes'), value: internetEnabled, onChanged: setInternetEnabled, activeColor: cyan),
-        ListTile(leading: Icon(brainReady ? Icons.memory : Icons.downloading, color: cyan), title: Text(brainReady ? 'Cerveau IA prêt' : 'Cerveau IA local'), subtitle: Text(brainStatus), trailing: brainLoading ? IconButton(icon: const Icon(Icons.cancel), onPressed: cancelBrainDownload) : IconButton(icon: const Icon(Icons.download), onPressed: loadBrain)),
-        ListTile(leading: const Icon(Icons.delete_outline, color: cyan), title: const Text('Supprimer le modèle IA'), onTap: removeBrain),
-        ListTile(leading: const Icon(Icons.system_update_alt, color: cyan),
-          title: Text(checking ? 'Vérification…' : 'Mises à jour'),
-          onTap: () { Navigator.pop(context); checkUpdates(); }),
-        const Spacer(),
-        const Padding(padding: EdgeInsets.all(20), child: Text('ASTRA • Interface holographique', style: TextStyle(color: Colors.white38, fontSize: 10))),
-      ],
-    ))),
+        if (showSettings) ...[
+          Padding(padding: const EdgeInsets.fromLTRB(12, 18, 12, 12), child: Row(children: [
+            IconButton(icon: const Icon(Icons.arrow_back, color: cyan), onPressed: () => setState(() => showSettings = false)),
+            const Expanded(child: Text('PARAMÈTRES', style: TextStyle(color: cyan, fontSize: 15, letterSpacing: 2))),
+          ])),
+          const Divider(color: Color(0x3354E8FF)),
+          SwitchListTile(title: const Text('Activer « Hey Astra »'), subtitle: const Text('Écoute uniquement quand ASTRA est ouvert'), value: wakeMode, onChanged: setWakeMode, activeColor: cyan),
+          SwitchListTile(title: const Text('Téléchargement Wi-Fi uniquement'), subtitle: const Text('Évite d’utiliser les données mobiles pour télécharger le modèle'), value: wifiOnly, onChanged: setWifiOnly, activeColor: cyan),
+          SwitchListTile(title: const Text('Accès Internet pour recherches'), subtitle: const Text('ASTRA peut rechercher des informations récentes sur le Web'), value: internetEnabled, onChanged: setInternetEnabled, activeColor: cyan),
+          const Spacer(),
+          const Padding(padding: EdgeInsets.all(20), child: Text('ASTRA • Paramètres', style: TextStyle(color: Colors.white38, fontSize: 10))),
+        ] else ...[
+          Padding(padding: const EdgeInsets.fromLTRB(22, 30, 22, 24), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            Container(width: 56, height: 56, decoration: BoxDecoration(shape: BoxShape.circle, border: Border.all(color: cyan, width: 1.5)),
+              child: const Icon(Icons.blur_on, color: cyan, size: 32)),
+            const SizedBox(height: 14),
+            const Text('ASTRA', style: TextStyle(color: Colors.white, fontSize: 22, letterSpacing: 5)),
+            const Text('ASSISTANT IA', style: TextStyle(color: cyan, fontSize: 9, letterSpacing: 2)),
+          ])),
+          const Divider(color: Color(0x3354E8FF)),
+          ListTile(leading: const Icon(Icons.forum_outlined, color: cyan), title: const Text('Conversation'),
+            onTap: () { setState(() => showChat = true); Navigator.pop(context); }),
+          ListTile(leading: const Icon(Icons.visibility_off_outlined, color: cyan), title: const Text('Masquer la conversation'),
+            onTap: () { setState(() => showChat = false); Navigator.pop(context); }),
+          ListTile(leading: Icon(brainReady ? Icons.memory : Icons.downloading, color: cyan), title: Text(brainReady ? 'Cerveau IA prêt' : 'Cerveau IA local'), subtitle: Text(brainStatus), trailing: brainLoading ? IconButton(icon: const Icon(Icons.cancel), onPressed: cancelBrainDownload) : IconButton(icon: const Icon(Icons.download), onPressed: loadBrain)),
+          ListTile(leading: const Icon(Icons.delete_outline, color: cyan), title: const Text('Supprimer le modèle IA'), onTap: removeBrain),
+          ListTile(leading: const Icon(Icons.system_update_alt, color: cyan),
+            title: Text(checking ? 'Vérification…' : 'Mises à jour'),
+            onTap: () { Navigator.pop(context); checkUpdates(); }),
+          const Spacer(),
+          ListTile(leading: const Icon(Icons.settings_outlined, color: cyan), title: const Text('Paramètres'),
+            onTap: () => setState(() => showSettings = true)),
+          const Padding(padding: EdgeInsets.all(20), child: Text('ASTRA • Interface holographique', style: TextStyle(color: Colors.white38, fontSize: 10))),
+        ],
+      ]))),
     body: Stack(children: [
       const Positioned.fill(child: DecoratedBox(decoration: BoxDecoration(gradient: RadialGradient(
         center: Alignment(0, -.15), radius: 1.15, colors: [Color(0xFF10283A), bg, Color(0xFF02050A)], stops: [0, .58, 1])))),
