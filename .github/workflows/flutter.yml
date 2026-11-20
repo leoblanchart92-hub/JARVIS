@@ -71,69 +71,20 @@ jobs:
           tree.write(path, encoding="utf-8", xml_declaration=True)
           PY
 
-      - name: Configure permanent APK signing
-        if: github.event_name == 'push' && github.ref == 'refs/heads/main' || github.event_name == 'workflow_dispatch'
-        env:
-          ASTRA_KEYSTORE_BASE64: ${{ secrets.ASTRA_KEYSTORE_BASE64 }}
-          ASTRA_KEYSTORE_PASSWORD: ${{ secrets.ASTRA_KEYSTORE_PASSWORD }}
-          ASTRA_KEY_ALIAS: ${{ secrets.ASTRA_KEY_ALIAS }}
-          ASTRA_KEY_PASSWORD: ${{ secrets.ASTRA_KEY_PASSWORD }}
+      - name: Configure release APK signing
         run: |
-          set -euo pipefail
-          for name in ASTRA_KEYSTORE_BASE64 ASTRA_KEYSTORE_PASSWORD ASTRA_KEY_ALIAS ASTRA_KEY_PASSWORD; do
-            if [ -z "${!name}" ]; then echo "::error::Missing secret $name"; exit 1; fi
-          done
-          mkdir -p android/app
-          python3 - <<'PY'
-          import base64, os, re
-          raw = os.environ["ASTRA_KEYSTORE_BASE64"]
-          # Normalize clipboard formatting and ignore non-Base64 separators.
-          cleaned = re.sub(r"[^A-Za-z0-9+/=]", "", raw)
-          cleaned = cleaned.rstrip("=")
-          cleaned += "=" * ((4 - len(cleaned) % 4) % 4)
-          try:
-              data = base64.b64decode(cleaned, validate=True)
-          except Exception as exc:
-              raise SystemExit("ASTRA_KEYSTORE_BASE64 cannot be decoded. The secret may be incomplete or corrupted.") from exc
-          # JKS files use the FEEDFEED header, while newer keytool defaults
-          # may produce PKCS12 (ASN.1) files. Validate with keytool below instead.
-          with open("android/app/astra-release.jks", "wb") as f:
-              f.write(data)
-          PY
-          keytool -list -keystore android/app/astra-release.jks -alias "$ASTRA_KEY_ALIAS" -storepass "$ASTRA_KEYSTORE_PASSWORD" >/dev/null
-          echo "Keystore decoded and verified."
-          cat > android/key.properties <<EOF
-          storePassword=$ASTRA_KEYSTORE_PASSWORD
-          keyPassword=$ASTRA_KEY_PASSWORD
-          keyAlias=$ASTRA_KEY_ALIAS
-          storeFile=astra-release.jks
-          EOF
           python3 - <<'PY'
           from pathlib import Path
           p = Path("android/app/build.gradle.kts")
           s = p.read_text()
-          s = s.replace("android {", """import java.util.Properties
-          val keystoreProperties = Properties()
-          val keystorePropertiesFile = rootProject.file("key.properties")
-          if (keystorePropertiesFile.exists()) {
-              keystorePropertiesFile.inputStream().use { keystoreProperties.load(it) }
-          }
-          android {""", 1)
-          s = s.replace("    buildTypes {", """    signingConfigs {
-              create("astraRelease") {
-                  keyAlias = keystoreProperties["keyAlias"] as String
-                  keyPassword = keystoreProperties["keyPassword"] as String
-                  storeFile = file(keystoreProperties["storeFile"] as String)
-                  storePassword = keystoreProperties["storePassword"] as String
-              }
-          }
-          buildTypes {""", 1)
-          s = s.replace('signingConfig = signingConfigs.getByName("debug")', 'signingConfig = signingConfigs.getByName("astraRelease")')
-          releaseStart = s.find('release {', s.find('buildTypes {'))
-          if releaseStart >= 0 and 'astraRelease' not in s[releaseStart:s.find('}', releaseStart)]:
-              s = s[:releaseStart+len('release {')] + '\\n            signingConfig = signingConfigs.getByName("astraRelease")' + s[releaseStart+len('release {'):]
+          release_start = s.find('release {', s.find('buildTypes {'))
+          if release_start >= 0:
+              close = s.find('}', release_start)
+              block = s[release_start:close]
+              if 'signingConfig' not in block:
+                  s = s[:release_start+len('release {')] + '\\n            signingConfig = signingConfigs.getByName("debug")' + s[release_start+len('release {'):]
           p.write_text(s)
-          print("Release signing configured.")
+          print("Release APK will use CI debug signing.")
           PY
 
       - name: Install dependencies
