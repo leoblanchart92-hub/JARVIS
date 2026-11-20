@@ -55,6 +55,7 @@ class _AssistantHomeState extends State<AssistantHome> with TickerProviderStateM
       internetEnabled = prefs.getBool('astra_internet') ?? true;
       wakeMode = prefs.getBool('astra_wake_mode') ?? false;
     });
+    if (wakeMode && voiceReady) restartWakeListening();
   }
 
   Future<void> setWifiOnly(bool value) async {
