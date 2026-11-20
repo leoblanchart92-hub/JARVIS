@@ -70,7 +70,10 @@ class _AssistantHomeState extends State<AssistantHome> with TickerProviderStateM
 
   Future<void> loadBrain() async {
     if (brainLoading || brainReady) return;
-    if (wifiOnly) {
+    final source = ModelSource.parse(AstraBrain.modelSource);
+    final manager = DefaultModelDownloadManager();
+    final cached = await manager.get(source.cacheKey);
+    if (cached == null && wifiOnly) {
       final connection = await Connectivity().checkConnectivity();
       if (connection != ConnectivityResult.wifi) {
         if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
@@ -116,7 +119,7 @@ class _AssistantHomeState extends State<AssistantHome> with TickerProviderStateM
   }
 
 
-  bool needsWebSearch(String query) => RegExp(r'\\b(cherche|recherche|internet|actualité|actualit[eé]s|aujourd|maintenant|actuellement|r[eé]cent|derni[eè]re|prix|m[eé]t[eé]o|news|qui est|quand est|combien)\\b', caseSensitive: false).hasMatch(query);
+  bool needsWebSearch(String query) => RegExp(r'\b(cherche|recherche|internet|actualité|actualit[eé]s|aujourd|maintenant|actuellement|r[eé]cent|derni[eè]re|prix|m[eé]t[eé]o|news|qui est|quand est|combien)\b', caseSensitive: false).hasMatch(query);
 
   @override
   void initState() {
@@ -311,9 +314,9 @@ class _AssistantHomeState extends State<AssistantHome> with TickerProviderStateM
         setState(() => messages[answerIndex] = ChatMessage('ASTRA', 'Recherche sur Internet…', false));
         try {
           final results = await AstraWebSearch.search(value);
-          prompt = 'Question de l’utilisateur : $value\\n\\nRésultats Internet disponibles (à utiliser comme contexte, vérifier leur fiabilité et résumer sans inventer) :\\n$results';
+          prompt = 'Question de l’utilisateur : $value\n\nRésultats Internet disponibles (à utiliser comme contexte, vérifier leur fiabilité et résumer sans inventer) :\n$results';
         } catch (_) {
-          prompt = '$value\\n\\nLa recherche Internet a échoué. Réponds avec tes connaissances locales et précise si une information récente ne peut pas être vérifiée.';
+          prompt = '$value\n\nLa recherche Internet a échoué. Réponds avec tes connaissances locales et précise si une information récente ne peut pas être vérifiée.';
         }
       }
       var reply = '';
