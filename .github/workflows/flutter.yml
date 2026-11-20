@@ -109,7 +109,20 @@ jobs:
           test -n "$ASTRA_KEYSTORE_PASSWORD" || { echo "Missing ASTRA_KEYSTORE_PASSWORD secret"; exit 1; }
           test -n "$ASTRA_KEY_ALIAS" || { echo "Missing ASTRA_KEY_ALIAS secret"; exit 1; }
           test -n "$ASTRA_KEY_PASSWORD" || { echo "Missing ASTRA_KEY_PASSWORD secret"; exit 1; }
-          echo "$ASTRA_KEYSTORE_BASE64" | base64 --decode > android/app/astra-release.jks
+          python3 - <<'PY'
+          import base64, os, re
+          raw = os.environ["ASTRA_KEYSTORE_BASE64"]
+          # Accept wrapped Base64 and common certutil header/footer lines.
+          lines = [line.strip() for line in raw.splitlines() if line.strip() and not line.strip().startswith("-----")]
+          encoded = re.sub(r"\\s+", "", "".join(lines))
+          try:
+              decoded = base64.b64decode(encoded, validate=True)
+          except Exception as exc:
+              raise SystemExit("ASTRA_KEYSTORE_BASE64 is not valid Base64. Recreate the secret as a single Base64 string (without certutil headers).") from exc
+          if not decoded:
+              raise SystemExit("Decoded keystore is empty.")
+          open("android/app/astra-release.jks", "wb").write(decoded)
+          PY
           python3 - <<'PY'
           from pathlib import Path
           p = Path("android/app/build.gradle.kts")
