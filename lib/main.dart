@@ -471,7 +471,7 @@ class _AssistantHomeState extends State<AssistantHome> with TickerProviderStateM
       Positioned(top: 18, child: Text('HOLOGRAMME IA', style: TextStyle(color: cyan.withOpacity(.7), fontSize: 8, letterSpacing: 3))),
       Positioned(bottom: 0, child: Text('ASTRA  •  ONLINE', style: TextStyle(color: cyan.withOpacity(.85), fontSize: 9, letterSpacing: 2))),
     ])),
-  );;
+  );
 }
 
 class ChatMessage {
@@ -507,7 +507,8 @@ class OrbitPainter extends CustomPainter {
   @override
   bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
 }
-\nclass HoloRingPainter extends CustomPainter {
+
+class HoloRingPainter extends CustomPainter {
   @override
   void paint(Canvas canvas, Size size) {
     final c = Offset(size.width / 2, size.height / 2);
