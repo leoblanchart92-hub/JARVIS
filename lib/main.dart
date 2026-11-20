@@ -160,6 +160,7 @@ class _AssistantHomeState extends State<AssistantHome> with TickerProviderStateM
       await tts.setSpeechRate(0.48);
       await tts.setVolume(1.0);
       if (mounted) setState(() {});
+      if (wakeMode) restartWakeListening();
     } catch (_) { voiceReady = false; if (mounted) setState(() {}); }
   }
 
