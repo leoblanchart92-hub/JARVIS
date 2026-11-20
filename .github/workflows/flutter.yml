@@ -97,7 +97,7 @@ jobs:
           tree.write(path, encoding="utf-8", xml_declaration=True)
           PY
 
-      - name: Configure APK signing (stable key when valid, debug fallback)
+      - name: Configure permanent ASTRA release signing (required)
         env:
           ASTRA_KEYSTORE_BASE64: ${{ secrets.ASTRA_KEYSTORE_BASE64 }}
           ASTRA_KEYSTORE_PASSWORD: ${{ secrets.ASTRA_KEYSTORE_PASSWORD }}
@@ -110,31 +110,41 @@ jobs:
           from pathlib import Path
           raw=os.getenv("ASTRA_KEYSTORE_BASE64", "")
           encoded=re.sub(r"\\s+", "", raw)
-          decoded=None
           try:
               decoded=base64.b64decode(encoded, validate=True)
-              if not decoded: decoded=None
-          except Exception:
-              decoded=None
-          if decoded:
-              Path("android/app/astra-release.jks").write_bytes(decoded)
-              p=Path("android/app/build.gradle.kts")
-              s=p.read_text()
-              block="\\n".join([
-                  "    signingConfigs {",
-                  '        create("astraRelease") {',
-                  '            storeFile = file("astra-release.jks")',
-                  '            storePassword = System.getenv("ASTRA_KEYSTORE_PASSWORD")',
-                  '            keyAlias = System.getenv("ASTRA_KEY_ALIAS")',
-                  '            keyPassword = System.getenv("ASTRA_KEY_PASSWORD")',
-                  "        }", "    }", ""])
-              if 'astraRelease' not in s: s=s.replace('android {','android {\\n'+block,1)
-              s=s.replace('signingConfig = signingConfigs.getByName("debug")','signingConfig = signingConfigs.getByName("astraRelease")')
-              p.write_text(s)
-              print("Stable signing key detected; release APK will use ASTRA key.")
-          else:
-              print("::warning::Keystore secret invalid/missing. Build will use temporary debug signing; APK updates may require uninstalling prior app.")
+          except Exception as e:
+              raise SystemExit("ASTRA_KEYSTORE_BASE64 missing/invalid: configure the same release keystore used for installed ASTRA.")
+          if not decoded:
+              raise SystemExit("ASTRA_KEYSTORE_BASE64 is empty.")
+          store_password=os.getenv("ASTRA_KEYSTORE_PASSWORD", "")
+          key_password=os.getenv("ASTRA_KEY_PASSWORD", "")
+          alias=os.getenv("ASTRA_KEY_ALIAS", "") or "astra"
+          if not store_password or not key_password:
+              raise SystemExit("Missing ASTRA_KEYSTORE_PASSWORD or ASTRA_KEY_PASSWORD secret.")
+          Path("android/app/astra-release.jks").write_bytes(decoded)
+          gradle=Path("android/app/build.gradle.kts")
+          if not gradle.exists():
+              raise SystemExit("Expected android/app/build.gradle.kts not found.")
+          s=gradle.read_text()
+          signing='''    signingConfigs {
+          create("astraRelease") {
+              storeFile = file("astra-release.jks")
+              storePassword = System.getenv("ASTRA_KEYSTORE_PASSWORD")
+              keyAlias = System.getenv("ASTRA_KEY_ALIAS") ?: "astra"
+              keyPassword = System.getenv("ASTRA_KEY_PASSWORD")
+          }
+      }
+      '''
+          if "create(\"astraRelease\")" not in s:
+              s=s.replace("android {", "android {\\n"+signing, 1)
+          s=s.replace('signingConfig = signingConfigs.getByName("debug")', 'signingConfig = signingConfigs.getByName("astraRelease")')
+          if 'signingConfig = signingConfigs.getByName("astraRelease")' not in s:
+              raise SystemExit("Could not set ASTRA release signing on release build type.")
+          gradle.write_text(s)
+          print("Release signing configured using persistent ASTRA keystore.")
           PY
+          keytool -list -keystore android/app/astra-release.jks -storepass "$ASTRA_KEYSTORE_PASSWORD" -alias "${ASTRA_KEY_ALIAS:-astra}" >/dev/null
+          echo "Permanent signing key validated."
 
       - name: Install dependencies
         run: flutter pub get
