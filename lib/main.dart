@@ -2,6 +2,11 @@ import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:speech_to_text/speech_to_text.dart' as stt;
 import 'package:flutter_tts/flutter_tts.dart';
+import 'package:connectivity_plus/connectivity_plus.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+import 'package:llamadart/llamadart.dart';
+import 'astra_brain.dart';
+import 'astra_web_search.dart';
 import 'update_service.dart';
 
 void main() => runApp(const AstraApp());
@@ -37,6 +42,81 @@ class _AssistantHomeState extends State<AssistantHome> with TickerProviderStateM
   final stt.SpeechToText speech = stt.SpeechToText();
   final FlutterTts tts = FlutterTts();
   double progress = 0;
+  final AstraBrain brain = AstraBrain();
+  bool brainLoading = false, brainReady = false, wifiOnly = true, internetEnabled = true;
+  double brainProgress = 0;
+  String brainStatus = 'Modèle non téléchargé';
+
+  Future<void> loadSettings() async {
+    final prefs = await SharedPreferences.getInstance();
+    if (!mounted) return;
+    setState(() {
+      wifiOnly = prefs.getBool('astra_wifi_only') ?? true;
+      internetEnabled = prefs.getBool('astra_internet') ?? true;
+    });
+  }
+
+  Future<void> setWifiOnly(bool value) async {
+    setState(() => wifiOnly = value);
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool('astra_wifi_only', value);
+  }
+
+  Future<void> setInternetEnabled(bool value) async {
+    setState(() => internetEnabled = value);
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool('astra_internet', value);
+  }
+
+  Future<void> loadBrain() async {
+    if (brainLoading || brainReady) return;
+    if (wifiOnly) {
+      final connection = await Connectivity().checkConnectivity();
+      if (connection != ConnectivityResult.wifi) {
+        if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+          content: Text('Le téléchargement est limité au Wi-Fi. Connecte-toi au Wi-Fi ou désactive cette option dans le menu ASTRA.')));
+        return;
+      }
+    }
+    setState(() { brainLoading = true; brainProgress = 0; brainStatus = 'Chargement du cerveau…'; });
+    try {
+      await brain.load(onProgress: (fraction) {
+        if (mounted) setState(() { brainProgress = fraction; brainStatus = 'Téléchargement du modèle…'; });
+      });
+      if (mounted) setState(() { brainReady = true; brainStatus = 'Cerveau IA prêt'; brainProgress = 1; });
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Le cerveau local d’ASTRA est prêt.')));
+    } catch (e) {
+      if (mounted) setState(() { brainStatus = 'Échec du chargement'; brainReady = false; });
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Chargement du cerveau impossible : $e')));
+    } finally {
+      if (mounted) setState(() => brainLoading = false);
+    }
+  }
+
+
+  Future<void> cancelBrainDownload() async {
+    brain.cancelDownload();
+    if (mounted) setState(() => brainStatus = 'Annulation demandée…');
+  }
+
+
+  Future<void> removeBrain() async {
+    if (brainLoading) brain.cancelDownload();
+    await brain.unload();
+    try {
+      final source = ModelSource.parse(AstraBrain.modelSource);
+      final manager = DefaultModelDownloadManager();
+      final cached = await manager.get(source.cacheKey);
+      if (cached != null) await manager.remove(cached.cacheKey);
+      if (mounted) setState(() { brainReady = false; brainProgress = 0; brainStatus = 'Modèle supprimé'; });
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Le modèle IA local a été supprimé.')));
+    } catch (e) {
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Suppression impossible : $e')));
+    }
+  }
+
+
+  bool needsWebSearch(String query) => RegExp(r'\\b(cherche|recherche|internet|actualité|actualit[eé]s|aujourd|maintenant|actuellement|r[eé]cent|derni[eè]re|prix|m[eé]t[eé]o|news|qui est|quand est|combien)\\b', caseSensitive: false).hasMatch(query);
 
   @override
   void initState() {
@@ -44,6 +124,7 @@ class _AssistantHomeState extends State<AssistantHome> with TickerProviderStateM
     pulse = AnimationController(vsync: this, duration: const Duration(seconds: 2))..repeat(reverse: true);
     orbit = AnimationController(vsync: this, duration: const Duration(seconds: 18))..repeat();
     initVoice();
+    loadSettings();
   }
 
 
@@ -204,19 +285,48 @@ class _AssistantHomeState extends State<AssistantHome> with TickerProviderStateM
     }
   }
 
-  void send() {
+  Future<void> send() async {
     final value = message.text.trim();
     if (value.isEmpty) return;
+    message.clear();
+    final userIndex = messages.length;
+    final answerIndex = userIndex + 1;
     setState(() {
       messages.add(ChatMessage('VOUS', value, true));
-      messages.add(ChatMessage('ASTRA', 'Le module IA n’est pas encore connecté. Ton message est conservé dans cette conversation.', false));
-      message.clear(); showChat = true;
+      messages.add(ChatMessage('ASTRA', '…', false));
+      showChat = true;
     });
-    speak('Message reçu. Mon module intelligence artificielle n’est pas encore connecté.');
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (scroll.hasClients) scroll.animateTo(scroll.position.maxScrollExtent,
         duration: const Duration(milliseconds: 300), curve: Curves.easeOut);
     });
+    try {
+      if (!brainReady) await loadBrain();
+      if (!brainReady) {
+        setState(() => messages[answerIndex] = ChatMessage('ASTRA', 'Le cerveau local n’est pas chargé. Vérifie le Wi-Fi et relance le message.', false));
+        return;
+      }
+      var prompt = value;
+      if (internetEnabled && needsWebSearch(value)) {
+        setState(() => messages[answerIndex] = ChatMessage('ASTRA', 'Recherche sur Internet…', false));
+        try {
+          final results = await AstraWebSearch.search(value);
+          prompt = 'Question de l’utilisateur : $value\\n\\nRésultats Internet disponibles (à utiliser comme contexte, vérifier leur fiabilité et résumer sans inventer) :\\n$results';
+        } catch (_) {
+          prompt = '$value\\n\\nLa recherche Internet a échoué. Réponds avec tes connaissances locales et précise si une information récente ne peut pas être vérifiée.';
+        }
+      }
+      var reply = '';
+      await for (final chunk in brain.replyStream(prompt)) {
+        reply += chunk;
+        if (mounted) setState(() => messages[answerIndex] = ChatMessage('ASTRA', reply, false));
+      }
+      if (reply.trim().isEmpty) reply = 'Je n’ai pas réussi à générer une réponse. Réessaie.';
+      if (mounted) setState(() => messages[answerIndex] = ChatMessage('ASTRA', reply, false));
+      speak(reply);
+    } catch (e) {
+      if (mounted) setState(() => messages[answerIndex] = ChatMessage('ASTRA', 'Une erreur est survenue : $e', false));
+    }
   }
 
   @override
@@ -245,6 +355,10 @@ class _AssistantHomeState extends State<AssistantHome> with TickerProviderStateM
           trailing: Switch(value: wakeMode, onChanged: (_) => toggleWakeMode(), activeColor: cyan),
           onTap: toggleWakeMode,
         ),
+        SwitchListTile(title: const Text('Téléchargement Wi-Fi uniquement'), subtitle: const Text('Évite d’utiliser les données mobiles'), value: wifiOnly, onChanged: setWifiOnly, activeColor: cyan),
+        SwitchListTile(title: const Text('Accès Internet pour recherches'), subtitle: const Text('ASTRA peut consulter le Web pour les questions récentes'), value: internetEnabled, onChanged: setInternetEnabled, activeColor: cyan),
+        ListTile(leading: Icon(brainReady ? Icons.memory : Icons.downloading, color: cyan), title: Text(brainReady ? 'Cerveau IA prêt' : 'Cerveau IA local'), subtitle: Text(brainStatus), trailing: brainLoading ? IconButton(icon: const Icon(Icons.cancel), onPressed: cancelBrainDownload) : IconButton(icon: const Icon(Icons.download), onPressed: loadBrain)),
+        ListTile(leading: const Icon(Icons.delete_outline, color: cyan), title: const Text('Supprimer le modèle IA'), onTap: removeBrain),
         ListTile(leading: const Icon(Icons.system_update_alt, color: cyan),
           title: Text(checking ? 'Vérification…' : 'Mises à jour'),
           onTap: () { Navigator.pop(context); checkUpdates(); }),
@@ -305,6 +419,13 @@ class _AssistantHomeState extends State<AssistantHome> with TickerProviderStateM
             child: IconButton(onPressed: send, icon: const Icon(Icons.arrow_upward, color: cyan))),
         ])),
       ])),
+      if (brainLoading) Positioned(left: 24, right: 24, bottom: 155, child: Container(padding: const EdgeInsets.all(14),
+        decoration: BoxDecoration(color: const Color(0xFF10202D), borderRadius: BorderRadius.circular(14), border: Border.all(color: cyan.withOpacity(.35))),
+        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Text(brainStatus, style: const TextStyle(color: cyan)), const SizedBox(height: 8),
+          LinearProgressIndicator(value: brainProgress > 0 ? brainProgress : null),
+          const SizedBox(height: 5), Text('${(brainProgress * 100).toStringAsFixed(0)}%', style: const TextStyle(color: Colors.white70, fontSize: 11)),
+        ]))),
       if (downloading) Positioned(left: 24, right: 24, bottom: 90, child: Container(padding: const EdgeInsets.all(14),
         decoration: BoxDecoration(color: const Color(0xFF10202D), borderRadius: BorderRadius.circular(14), border: Border.all(color: cyan.withOpacity(.35))),
         child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
