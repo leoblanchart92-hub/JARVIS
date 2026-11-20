@@ -74,7 +74,7 @@ class _AssistantHomeState extends State<AssistantHome> with TickerProviderStateM
   }
 
 
-  // Wake-word prototype: listens for "ASTRA" while the app is open.
+  // Wake-word listener: waits for the phrase "Hey Astra" while the app is open.
   Future<void> startWakeListening() async {
     if (!wakeMode || !voiceReady || listening || wakeSession) return;
     try {
@@ -86,10 +86,10 @@ class _AssistantHomeState extends State<AssistantHome> with TickerProviderStateM
         onResult: (result) {
           if (!mounted || !wakeMode || wakeSession) return;
           final heard = result.recognizedWords.trim();
-          if (RegExp(r'\bastra\b', caseSensitive: false).hasMatch(heard)) {
+          if (RegExp(r'\bhey\s+astra\b', caseSensitive: false).hasMatch(heard)) {
             wakeSession = true;
             speech.stop();
-            final command = heard.replaceFirst(RegExp(r'\bastra\b', caseSensitive: false), '').trim();
+            final command = heard.replaceFirst(RegExp(r'\bhey\s+astra\b', caseSensitive: false), '').trim();
             if (command.isNotEmpty) {
               message.text = command;
               setState(() { listening = false; });
@@ -154,7 +154,7 @@ class _AssistantHomeState extends State<AssistantHome> with TickerProviderStateM
       await speech.stop();
       listening = false;
       restartWakeListening();
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Écoute du mot ASTRA activée tant que l’application reste ouverte.')));
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Écoute de « Hey Astra » activée tant que l’application reste ouverte.')));
     } else {
       await speech.stop();
       setState(() { listening = false; });
@@ -240,7 +240,7 @@ class _AssistantHomeState extends State<AssistantHome> with TickerProviderStateM
           onTap: () { setState(() => showChat = false); Navigator.pop(context); }),
         ListTile(
           leading: Icon(wakeMode ? Icons.hearing : Icons.hearing_disabled, color: cyan),
-          title: Text(wakeMode ? 'Écoute ASTRA activée' : 'Activer le mot ASTRA'),
+          title: Text(wakeMode ? 'Écoute Hey Astra activée' : 'Activer « Hey Astra »'),
           subtitle: const Text('Écoute seulement quand ASTRA est ouvert'),
           trailing: Switch(value: wakeMode, onChanged: (_) => toggleWakeMode(), activeColor: cyan),
           onTap: toggleWakeMode,
