@@ -43,6 +43,13 @@ jobs:
           echo "TAG=v$next" >> "$GITHUB_ENV"
           echo "Next ASTRA release: v$next"
 
+      - name: Set Flutter package version to release version
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main' || github.event_name == 'workflow_dispatch'
+        run: |
+          BUILD_NUMBER="${GITHUB_RUN_NUMBER}"
+          sed -i -E "s/^version: .*/version: ${VERSION}+${BUILD_NUMBER}/" pubspec.yaml
+          grep '^version:' pubspec.yaml
+
       - name: Install Flutter
         uses: subosito/flutter-action@v2
         with:
